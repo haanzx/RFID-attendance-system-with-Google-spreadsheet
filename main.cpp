@@ -1,3 +1,4 @@
+#include <Arduino.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <MFRC522.h>
@@ -5,40 +6,49 @@
 #include <Wire.h> 
 #include <LiquidCrystal_I2C.h>
 
-// Definisi pin RFID
+// --- HARDWARE PIN DEFINITION
+// RFID Pin
 #define SS_PIN 5
 #define RST_PIN 4
 #define MOSI_PIN 23
 #define MISO_PIN 19
 #define SCK_PIN 18
 
-MFRC522 mfrc522(SS_PIN, RST_PIN);
-
-// Definisi pin untuk tombol
+// Switch Pin
 #define BUTTON_MASUK_PIN 13
 #define BUTTON_PULANG_PIN 15
 
-// Alamat I2C LCD (0x27 atau 0x3F) dan ukuran LCD (16 kolom, 2 baris)
-LiquidCrystal_I2C lcd(0x27, 16, 2); 
+// Buzzer Pin
+#define BUZZER_PIN 2 
 
-const char* ssid = "MG-Service"; // Ganti
-const char* password = "onomugi1945"; // Ganti
+// --- Object Initialization ---
+MFRC522 mfrc522(SS_PIN, RST_PIN);
+LiquidCrystal_I2C lcd(0x27, 16, 2);
 
-const String GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwKOw03y-_ER1Hh3iMJjxnsUdfh227k_rQh7zWS64DBKa2B0Ec1CtIhvUSPnLXPPPit/exec"; // Ganti
+// --- Network Configuration & Google Apps Script ---
+const char* ssid = "Your_WIFI_Name";
+const char* password = "Your WiFi Password";
+const String GOOGLE_SCRIPT_URL = "Your_Web_App_URL";
 
+// --- Function Declaration ---
 void sendDataToGoogleSheets(String uid, String status);
 void waitForCardAndSend(String status);
+void beepSuccess();
+void beepFailure();
 
 void setup() {
   Serial.begin(9600);
   SPI.begin(SCK_PIN, MISO_PIN, MOSI_PIN, SS_PIN);
   mfrc522.PCD_Init();
   
-  // Konfigurasi pin tombol sebagai input pull-up
+  // --- Pin Konfiguration ---
+  // Switch Pin
   pinMode(BUTTON_MASUK_PIN, INPUT_PULLUP);
   pinMode(BUTTON_PULANG_PIN, INPUT_PULLUP);
+  // Buzzer Pin
+  pinMode(BUZZER_PIN, OUTPUT);
 
-  // Inisialisasi LCD
+  // --- Initialize LCD ---
   lcd.init(); 
   lcd.backlight();
   lcd.setCursor(0, 0);
@@ -54,6 +64,7 @@ void setup() {
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("Terhubung!");
+  beepSuccess(); // Bunyi sekali saat koneksi berhasil
   delay(2000);
   lcd.clear();
   lcd.print("Siap");
@@ -61,6 +72,7 @@ void setup() {
   lcd.print("Tekan Tombol");
 }
 
+// --- Fungsi Loop Utama ---
 void loop() {
   // Cek apakah tombol "Masuk" ditekan (LOW karena pull-up)
   if (digitalRead(BUTTON_MASUK_PIN) == LOW) {
@@ -91,6 +103,7 @@ void loop() {
   }
 }
 
+// --- Fungsi Penanganan RFID ---
 void waitForCardAndSend(String status) {
   long startTime = millis();
   while (millis() - startTime < 10000) { // Timeout 10 detik
@@ -122,6 +135,7 @@ void waitForCardAndSend(String status) {
   lcd.clear();
   lcd.setCursor(2,0);
   lcd.print("Waktu Habis!");
+  beepFailure(); // Bunyi gagal saat timeout
   delay(2000);
   lcd.clear();
   lcd.print("Siap");
@@ -129,6 +143,7 @@ void waitForCardAndSend(String status) {
   lcd.print("Tekan tombol");
 }
 
+// --- Fungsi Kirim Data ke Google Sheets ---
 void sendDataToGoogleSheets(String uid, String status) {
   if (WiFi.status() == WL_CONNECTED) {
     HTTPClient http;
@@ -143,10 +158,12 @@ void sendDataToGoogleSheets(String uid, String status) {
       
       lcd.clear();
       lcd.print("Data Terkirim!");
+      beepSuccess(); // Bunyi sekali saat data berhasil dikirim
     } else {
-      Serial.println("Error saat mengirim data.");
+      Serial.println("Error saat mengirim data. HTTP code: " + String(httpCode));
       lcd.clear();
       lcd.print("Gagal Kirim Data!");
+      beepFailure(); // Bunyi berkali-kali saat gagal kirim
     }
     
     http.end();
@@ -154,5 +171,25 @@ void sendDataToGoogleSheets(String uid, String status) {
     Serial.println("WiFi tidak terhubung.");
     lcd.clear();
     lcd.print("WiFi Terputus!");
+    beepFailure(); // Bunyi berkali-kali jika WiFi terputus
+  }
+}
+
+// --- Fungsi Buzzer ---
+
+// Buzzer bunyi sekali (Success)
+void beepSuccess() {
+  digitalWrite(BUZZER_PIN, HIGH);
+  delay(100);
+  digitalWrite(BUZZER_PIN, LOW);
+}
+
+// Buzzer bunyi cepat berkali-kali (Failure)
+void beepFailure() {
+  for (int i = 0; i < 3; i++) { // Bunyi 3 kali cepat
+    digitalWrite(BUZZER_PIN, HIGH);
+    delay(50);
+    digitalWrite(BUZZER_PIN, LOW);
+    delay(50);
   }
 }

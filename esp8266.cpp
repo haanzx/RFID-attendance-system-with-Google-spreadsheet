@@ -6,14 +6,13 @@
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 
-// RFID Pin (SS dan RST menggunakan pin bebas SPI/I2C)
-#define SS_PIN D8   // GPIO2 (Ganti dari D4 ke D8 lebih aman, tapi D4 bisa dipakai)
-#define RST_PIN D0  // GPIO15 (Lebih aman untuk RST daripada D3/GPIO0)
-
-// Switch Pin (Menggunakan pin bebas SPI/I2C)
-#define BUTTON_MASUK_PIN D3   // GPIO0
+// --- Pin Definition ---
+// RFID Pin
+#define SS_PIN D8   
+#define RST_PIN D0  
+// Switch Pin 
+#define BUTTON_MASUK_PIN D3  
 #define BUTTON_PULANG_PIN D4  
-
 // Buzzer Pin
 #define BUZZER_PIN D10
 
@@ -22,9 +21,9 @@ MFRC522 mfrc522(SS_PIN, RST_PIN);
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 // --- Network Configuration & Google Apps Script ---
-const char* ssid = "MG-Service";
-const char* password = "onomugi1945";
-const String GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxa7q9chLg9ySH5fP8JdfB7MKgFknSD7Gea8ILSh5_BSvJuyI_MC4Ngx9G_1Fx6ix2P/exec";
+const char* ssid = "your-ssid";
+const char* password = "your-password-wifi";
+const String GOOGLE_SCRIPT_URL = "your-google-script-url";
 
 // --- Function Declaration ---
 void sendDataToGoogleSheets(String uid, String status);
@@ -34,20 +33,13 @@ void beepFailure();
 
 void setup() {
     Serial.begin(9600);
-    
-    // Inisialisasi Wire (I2C) untuk LCD
-    // Wire.begin() menggunakan D1 (SCL) dan D2 (SDA) secara default
     Wire.begin(); 
-    
     SPI.begin();
     mfrc522.PCD_Init();
     
     // --- Pin Konfiguration ---
-    // Tombol Masuk di D3 (GPIO0) menggunakan pullup internal
     pinMode(BUTTON_MASUK_PIN, INPUT_PULLUP);
-    // Tombol Pulang di D8 (GPIO15) menggunakan pullup internal
-    pinMode(BUTTON_PULANG_PIN, INPUT);
-    // Buzzer Pin di D0 (GPIO16)
+    pinMode(BUTTON_PULANG_PIN, INPUT_PULLUP);
     pinMode(BUZZER_PIN, OUTPUT);
 
   // --- Initialize LCD ---
@@ -82,9 +74,7 @@ void setup() {
   lcd.print("Tekan Tombol");
 }
 
-// --- Fungsi Loop Utama ---
 void loop() {
-  // Cek apakah tombol "Masuk" ditekan (LOW karena pull-up)
   if (digitalRead(BUTTON_MASUK_PIN) == LOW) {
     delay(50); // Debounce
     if (digitalRead(BUTTON_MASUK_PIN) == LOW) {
@@ -98,7 +88,6 @@ void loop() {
     }
   }
 
-  // Cek apakah tombol "Pulang" ditekan (LOW karena pull-up)
   if (digitalRead(BUTTON_PULANG_PIN) == LOW) {
     delay(50); // Debounce
     if (digitalRead(BUTTON_PULANG_PIN) == LOW) {
@@ -159,14 +148,11 @@ void sendDataToGoogleSheets(String uid, String status) {
     // Gunakan WiFiClientSecure untuk koneksi HTTPS ke Google Sheets
     WiFiClientSecure client;
     client.setInsecure(); // Opsional: mengabaikan verifikasi sertifikat SSL
-
     // Inisialisasi HTTP Client
     HTTPClient http;
     String url = GOOGLE_SCRIPT_URL + "?id=" + uid + "&status=" + status;
-    
     // Perubahan: Gunakan klien yang aman (secure client)
-    if (http.begin(client, url)) { // Coba koneksi dengan klien aman
-        
+    if (http.begin(client, url)) { // Coba koneksi dengan klien aman 
         int httpCode = http.GET();
         
         if (httpCode > 0) {
@@ -198,16 +184,13 @@ void sendDataToGoogleSheets(String uid, String status) {
   }
 }
 
-
-// --- Fungsi Buzzer ---
-
+// --- Buzzer Function ---
 // Buzzer bunyi sekali (Success)
 void beepSuccess() {
   digitalWrite(BUZZER_PIN, HIGH);
   delay(100);
   digitalWrite(BUZZER_PIN, LOW);
 }
-
 // Buzzer bunyi cepat berkali-kali (Failure)
 void beepFailure() {
   for (int i = 0; i < 3; i++) { // Bunyi 3 kali cepat

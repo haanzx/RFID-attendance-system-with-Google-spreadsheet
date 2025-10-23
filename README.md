@@ -37,7 +37,7 @@ Berikut adalah ringkasan koneksi pin yang digunakan dalam file `esp32.cpp` dan `
 | | SCL | **D22** | **D1** | I2C Clock (Umumnya) |
 | **Tombol Masuk** | Kaki Sinyal | **D13** | **D3** | Input `INPUT_PULLUP` (`BUTTON_MASUK_PIN`) |
 | **Tombol Pulang**| Kaki Sinyal | **D15** | **D4** | Input `INPUT_PULLUP` (`BUTTON_PULANG_PIN`) |
-| **Buzzer** | Kaki Positif (+) | **D2** | **D10** |  Umpan Balik Audio (`BUZZER_PIN`) |
+| **Buzzer** | Kaki Positif (+) | **D2** | **D9 / RX** |  Umpan Balik Audio (`BUZZER_PIN`) |
 
 ## ☁️ Logika Program (Konsep Kerja)
 

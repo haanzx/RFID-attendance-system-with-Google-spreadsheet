@@ -5,6 +5,8 @@
 #include <SPI.h>
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
+#include <NTPClient.h>
+#include <WiFiUdp.h>
 
 // --- Pin Definition ---
 // RFID Pin
@@ -14,7 +16,7 @@
 #define BUTTON_MASUK_PIN D3  
 #define BUTTON_PULANG_PIN D4  
 // Buzzer Pin
-#define BUZZER_PIN D10
+#define BUZZER_PIN D9
 
 // --- Object Initialization ---
 MFRC522 mfrc522(SS_PIN, RST_PIN);
@@ -22,14 +24,24 @@ LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 // --- Network Configuration & Google Apps Script ---
 const char* ssid = "your-ssid";
-const char* password = "your-password-wifi";
+const char* password = "your-password";
 const String GOOGLE_SCRIPT_URL = "your-google-script-url";
+
+// --- Time COnfiguration ---
+WiFiUDP ntpUDP;
+// Time Zone = Your Time Zone (GMT +7 = 7, GMT -8 = -8)
+NTPClient timeClient(ntpUDP, "pool.ntp.org", TimeZone * 3600, 60000); 
+
+// --- Variabel Global untuk Display ---
+String formattedTime;
+String dayDisplay;
 
 // --- Function Declaration ---
 void sendDataToGoogleSheets(String uid, String status);
 void waitForCardAndSend(String status);
 void beepSuccess();
 void beepFailure(); 
+void updateDisplaySiaga();
 
 void setup() {
     Serial.begin(9600);
@@ -67,14 +79,16 @@ void setup() {
   Serial.println(WiFi.localIP());
   
   beepSuccess(); // Bunyi sekali saat koneksi berhasil
-  delay(2000);
-  lcd.clear();
-  lcd.print("Siap");
-  lcd.setCursor(2,1);
-  lcd.print("Tekan Tombol");
+  //Inisialisasi Klien NTP
+    timeClient.begin(); 
+    
+    delay(1000);
+    lcd.clear();
 }
 
 void loop() {
+  updateDisplaySiaga();
+  
   if (digitalRead(BUTTON_MASUK_PIN) == LOW) {
     delay(50); // Debounce
     if (digitalRead(BUTTON_MASUK_PIN) == LOW) {
@@ -83,6 +97,8 @@ void loop() {
       lcd.print("Absen  Masuk");
       lcd.setCursor(2,1);
       lcd.print("Tempel Kartu");
+
+      timeClient.update();
       
       waitForCardAndSend("Masuk");
     }
@@ -96,6 +112,8 @@ void loop() {
       lcd.print("Absen Pulang");
       lcd.setCursor(2,1);
       lcd.print("Tempel Kartu");
+
+      timeClient.update();
       
       waitForCardAndSend("Pulang");
     }
@@ -105,7 +123,7 @@ void loop() {
 // --- Fungsi Penanganan RFID ---
 void waitForCardAndSend(String status) {
   long startTime = millis();
-  while (millis() - startTime < 10000) { // Timeout 10 detik
+  while (millis() - startTime < 7500) { // Timeout 7,5 detik
     if (mfrc522.PICC_IsNewCardPresent() && mfrc522.PICC_ReadCardSerial()) {
       String uidString = "";
       for (byte i = 0; i < mfrc522.uid.size; i++) {
@@ -114,17 +132,12 @@ void waitForCardAndSend(String status) {
       }
       
       lcd.setCursor(0, 1);
-      lcd.print("Mengirim........");
+      lcd.print("#---Mengirim---#");
       
       sendDataToGoogleSheets(uidString, status);
       
       mfrc522.PICC_HaltA();
-      delay(2000); 
-      
-      lcd.clear();
-      lcd.print("Siap");
-      lcd.setCursor(2,1);
-      lcd.print("Tekan tombol");
+      delay(1500); 
       return; // Keluar dari fungsi
     }
     delay(50);
@@ -137,9 +150,6 @@ void waitForCardAndSend(String status) {
   beepFailure(); // Bunyi gagal saat timeout
   delay(2000);
   lcd.clear();
-  lcd.print("Siap");
-  lcd.setCursor(2,1);
-  lcd.print("Tekan tombol");
 }
 
 // --- Fungsi Kirim Data ke Google Sheets ---
@@ -159,8 +169,9 @@ void sendDataToGoogleSheets(String uid, String status) {
           String payload = http.getString();
           Serial.println(payload);
           
-          lcd.clear();
-          lcd.print("Data Terkirim!");
+          //lcd.clear();
+          lcd.setCursor(0,1);
+          lcd.print(" Data  Terkirim ");
           beepSuccess(); // Bunyi sekali saat data berhasil dikirim
         } else {
           Serial.println("Error saat mengirim data. HTTP code: " + String(httpCode));
@@ -184,11 +195,36 @@ void sendDataToGoogleSheets(String uid, String status) {
   }
 }
 
+// --- Fungsi Update dan Tampilkan Waktu di LCD Siaga ---
+void updateDisplaySiaga() {
+    // Memastikan waktu terupdate (jika sudah waktunya)
+    timeClient.update();
+    
+    // Ambil string waktu berformat HH:MM:SS
+    formattedTime = timeClient.getFormattedTime(); 
+    
+    // Ambil hari
+    int currentDay = timeClient.getDay();
+    // 0=Minggu, 1=Senin, dst.
+    String days[] = {"Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"};
+    dayDisplay = days[currentDay];
+    
+    // Tampilkan di LCD (Baris 1)
+    lcd.setCursor(2, 0);
+    lcd.print(dayDisplay);
+    lcd.print(" ");
+    lcd.print(formattedTime);
+    
+    // Tampilkan pesan siaga (Baris 2)
+    lcd.setCursor(1, 1);
+    lcd.print(" Tekan Tombol ");
+}
+
 // --- Buzzer Function ---
 // Buzzer bunyi sekali (Success)
 void beepSuccess() {
   digitalWrite(BUZZER_PIN, HIGH);
-  delay(100);
+  delay(50);
   digitalWrite(BUZZER_PIN, LOW);
 }
 // Buzzer bunyi cepat berkali-kali (Failure)
@@ -197,6 +233,6 @@ void beepFailure() {
     digitalWrite(BUZZER_PIN, HIGH);
     delay(50);
     digitalWrite(BUZZER_PIN, LOW);
-    delay(50);
+    delay(70);
   }
 }
